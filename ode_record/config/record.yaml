@@ -1,0 +1,13 @@
+record:
+  ros__parameters:
+    output_dir: '/home/zainir17/ta_ws/record' # Directory to save the recordings
+    lidar_list:
+      - '/lidarkiri/lidar_points'
+      - '/lidartengah/lidar_points'
+      - '/lidarkanan/lidar_points'
+    camera_list:
+      # - '/camerakiri'
+      - '/cameratengah/image_raw'
+      # - '/camerakanan'
+    navsat_topic: '/gps/fix' # GPS topic
+    frequency: 2.0 #Hz

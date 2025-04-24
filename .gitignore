@@ -1,0 +1,41 @@
+# ROS2 package build and install folders
+build/
+install/
+log/
+
+# ROS2 workspace files
+.colcon/
+.colcon_cache/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Other common ignores
+*.swp
+*.bak
+*.tmp
+.DS_Store
+
+# C/C++ build artifacts
+*.o
+*.obj
+*.so
+*.a
+*.lib
+*.dll
+*.exe
+*.out
+*.app
+
+# CMake build artifacts
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+.vscode
+log
+/data

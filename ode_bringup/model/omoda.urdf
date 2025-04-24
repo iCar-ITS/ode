@@ -1,0 +1,73 @@
+<robot name="omoda">
+
+    <link name="base_link">
+
+    </link>
+
+    <link name="base_lidar">
+
+    </link>
+
+    <link name="velodynekanan">
+
+    </link>
+
+    <link name="velodynekiri">
+
+    </link>
+
+    <link name="velodynetengah">
+    </link>
+
+    <link name="lidartengah">
+    </link>
+
+    <link name="radar">
+    </link>
+
+    <link name="camera">
+    </link>
+
+    <joint name="base_joint" type="fixed">
+        <parent link="base_link" />
+        <child link="base_lidar" />
+        <origin xyz="0.0 0.0 1.5" rpy="0.0 0.0 0.0" />
+    </joint>
+
+    <joint name="radar_joint" type="fixed">
+        <parent link="base_link" />
+        <child link="radar" />
+        <origin xyz="2.2 0.0 0.0" rpy="0.0 0.0 0.0" />
+    </joint>
+
+    <joint name="velodyne1_joint" type="fixed">
+        <parent link="base_lidar" />
+        <child link="velodynekanan" />
+        <origin xyz="0.0 -0.45 0.231" rpy="0.78 0.0 0.0" />
+    </joint>
+
+    <joint name="velodyne2_joint" type="fixed">
+        <parent link="base_lidar" />
+        <child link="velodynekiri" />
+        <origin xyz="0.0 0.45 0.231" rpy="-0.78 0.0 0.0" />
+    </joint>
+
+    <joint name="velodyne3_joint" type="fixed">
+        <parent link="base_lidar" />
+        <child link="velodynetengah" />
+        <origin xyz="0.0 0.0 0.43" rpy="0.0 0.0 0.0" />
+    </joint>
+
+    <joint name="lidar3_joint" type="fixed">
+        <parent link="base_lidar" />
+        <child link="lidartengah" />
+        <origin xyz="0.0 0.0 0.43" rpy="0.0 0.0 0.0" />
+    </joint>
+
+    <joint name="camera_joint" type="fixed">
+        <parent link="base_lidar" />
+        <child link="camera" />
+        <origin xyz="0.4 0.0 0.0" rpy="0.0 0.0 0.0" />
+    </joint>
+
+</robot>
