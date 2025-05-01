@@ -39,5 +39,5 @@ def generate_launch_description():
             output='screen',
             parameters=[LaunchConfiguration('config_file')], 
         ),
-        telemetry,
+        # telemetry,
     ])

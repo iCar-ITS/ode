@@ -3,6 +3,7 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <vector>
+#include <thread>
 #include "pcl_record.hpp"
 #include "im_record.hpp"
 #include "navsat_record.hpp"
@@ -23,7 +24,7 @@ public:
   Record() : Node("record_node")
   {
     this->declare_parameter("output_dir", "");
-    this->declare_parameter("frequency", 1.0);
+    this->declare_parameter("samp_time", 1.0);
     this->declare_parameter("lidar_list", std::vector<std::string>());
     this->declare_parameter("camera_list", std::vector<std::string>());
     this->declare_parameter("navsat_topic", std::string());
@@ -40,35 +41,36 @@ public:
     RCLCPP_INFO(this->get_logger(), "Output directory: %s", 
       this->get_parameter("output_dir").as_string().c_str());
 
+      auto this_node = this->shared_from_this();
+
     // listing lidar topics 
     auto lidar_list = this->get_parameter("lidar_list").as_string_array();
     for(auto& lidar : lidar_list)
     {
-      pcl_subs_list_.emplace_back(std::make_shared<PCLRecord>(lidar, this->shared_from_this()));
+      pcl_subs_list_.emplace_back(std::make_shared<PCLRecord>(lidar, this_node));
     }
 
     // listing camera topics 
     auto cam_list = this->get_parameter("camera_list").as_string_array();
     for(auto& cam : cam_list)
     {
-      cam_subs_list_.emplace_back(std::make_shared<ImRecord>(cam, this->shared_from_this()));
+      cam_subs_list_.emplace_back(std::make_shared<ImRecord>(cam, this_node));
     }
 
     // listing navsat topic
     auto navsat_topic = this->get_parameter("navsat_topic").as_string();
     if(!navsat_topic.empty())
     {
-      navsat_subs_ = std::make_shared<NSRecord>(navsat_topic, this->shared_from_this());
+      navsat_subs_ = std::make_shared<NSRecord>(navsat_topic, this_node);
     }
 
     // Create wall timer with period based on frequency parameter
     {
-      auto samp_freq = this->get_parameter("frequency").as_double();
-      auto samp_time = 1.00 / samp_freq;
-      uint32_t time_us = samp_time * 1000000;
-      auto time_c_us = std::chrono::microseconds(time_us);
+      auto samp_time = this->get_parameter("samp_time").as_double();
+      uint32_t time_ms = samp_time * 1000;
+      auto time_c_ms = std::chrono::milliseconds(time_ms);
       sequence_timer_ = this->create_wall_timer(
-        time_c_us, 
+        time_c_ms, 
         std::bind(&Record::main_loop, this));
       RCLCPP_INFO(this->get_logger(), "Recording period\t: %fs.", samp_time);
     }
@@ -88,18 +90,30 @@ public:
 
   void main_loop()
   {
+    static uint32_t seq = 0;
+
+    RCLCPP_INFO(this->get_logger(), "Sequence %i start", seq);
+
     for(auto& i : pcl_subs_list_)
     {
-      i->save(directory_, std::chrono::system_clock::now());
+      std::thread([=](){
+        i->save(directory_, std::chrono::system_clock::now(), seq);
+      }).detach();
     }
+
     for(auto& i : cam_subs_list_)
     {
-      i->save(directory_, std::chrono::system_clock::now());
+      std::thread([=](){
+        i->save(directory_, std::chrono::system_clock::now(), seq);
+      }).detach();
     }
+
     if(navsat_subs_)
     {
-      navsat_subs_->save(directory_, std::chrono::system_clock::now());
+      navsat_subs_->save(directory_, std::chrono::system_clock::now(), seq);
     }
+
+    seq += 1;
   }
 };
 

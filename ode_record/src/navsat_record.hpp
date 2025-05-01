@@ -11,6 +11,8 @@
 #include <sstream>
 #include <fstream>
 #include <iostream>
+#include <atomic>
+#include "dobuff.hpp"
 
 class NSRecord
 {
@@ -18,9 +20,12 @@ private:
     std::string topic_name_;
     std::string folder_name_;
     std::string frame_id_;
-    sensor_msgs::msg::NavSatFix msg_;
+    std::string dir_topic_;
+    // sensor_msgs::msg::NavSatFix msg_;
 
-    std::mutex mutex_;
+    // std::mutex mutex_;
+
+    DuoBuffer<sensor_msgs::msg::NavSatFix> buffer_;
 
     rclcpp::Node::SharedPtr node_;
     rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr subs_;
@@ -59,15 +64,17 @@ public:
 
     void callback(const sensor_msgs::msg::NavSatFix& msg)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        msg_ = msg;
+        // std::lock_guard<std::mutex> lock(mutex_);
+        // msg_ = msg;
+        buffer_.set(msg);
         is_valid_ = true;
     }
 
     sensor_msgs::msg::NavSatFix get_msg()
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return msg_;
+        // std::lock_guard<std::mutex> lock(mutex_);
+        // return msg_;
+        return sensor_msgs::msg::NavSatFix();
     }
 
     std::string get_topic_name() const
@@ -82,7 +89,8 @@ public:
 
     void save(
         const std::string& dir, 
-        std::chrono::time_point<std::chrono::system_clock> time) 
+        std::chrono::time_point<std::chrono::system_clock> time,
+        uint32_t seq) 
     {
         if (!is_valid_)
         {
@@ -91,24 +99,29 @@ public:
         }
 
         // Lock the mutex to ensure thread safety
-        std::lock_guard<std::mutex> lock(mutex_);
+        // std::lock_guard<std::mutex> lock(mutex_);
+
+        seq_ = seq;
 
         // Create string
-        static std::string dir_topic = dir + "/" + folder_name_;
         std::string seq_str;
         {
             std::stringstream ss;
             ss << std::setw(10) << std::setfill('0') << seq_;
             seq_str = ss.str();
         }
-
+        
+        buffer_.claim();
+        auto& msg_ = buffer_.get();
+        
         // Check init status
         if (!is_init_)
         {
+            dir_topic_ = dir + "/" + folder_name_;
             frame_id_ = msg_.header.frame_id;
 
             // Create directory if it doesn't exist
-            std::filesystem::create_directories(dir_topic+"/");
+            std::filesystem::create_directories(dir_topic_+"/");
 
             // GNS service string
             std::string gns_service;
@@ -130,7 +143,7 @@ public:
             }
 
             // Create metadata
-            std::ofstream metadata_file(dir_topic + "/metadata.txt", std::ios::app | std::ios::out);
+            std::ofstream metadata_file(dir_topic_ + "/metadata.txt", std::ios::app | std::ios::out);
             if (metadata_file.is_open())
             {
                 metadata_file << "topic: " << topic_name_ << std::endl
@@ -145,7 +158,7 @@ public:
             }
 
             // Create directory for coordinate and timestamp
-            std::ofstream coord_file(dir_topic + "/coordinate.txt", std::ios::trunc);
+            std::ofstream coord_file(dir_topic_ + "/coordinate.txt", std::ios::trunc);
             if (coord_file.is_open())
             {
                 coord_file << std::left << std::setw(14) << "seq";
@@ -162,20 +175,20 @@ public:
             }
 
             // Check if directory exists
-            if(!std::filesystem::exists(dir_topic))
+            if(!std::filesystem::exists(dir_topic_))
             {
                 RCLCPP_ERROR(node_->get_logger(), "Directory does not exist.");
                 throw std::runtime_error("Directory does not exist.");
             }
 
             // OK
-            RCLCPP_INFO(node_->get_logger(), "Directory created: %s", dir_topic.c_str());
+            RCLCPP_INFO(node_->get_logger(), "Directory created: %s", dir_topic_.c_str());
             is_init_ = true;
         }
 
         // Save coordinate
         {
-            static std::string coor_dir = dir_topic + "/coordinate.txt";
+            std::string coor_dir = dir_topic_ + "/coordinate.txt";
             std::ofstream coord_file(coor_dir, std::ios::app);
             if (coord_file.is_open())
             {
@@ -206,7 +219,7 @@ public:
         // Save timestamp
         {
             int64_t timestamp = time.time_since_epoch().count();
-            static std::string ts_dir = dir_topic + "/timestamps.txt";
+            std::string ts_dir = dir_topic_ + "/timestamps.txt";
             std::ofstream timestamp_file(ts_dir, std::ios::app);
             if (timestamp_file.is_open())
             {
@@ -218,8 +231,6 @@ public:
                 RCLCPP_ERROR(node_->get_logger(), "Unable to open file for writing timestamps.");
             }
         }
-
-        seq_ += 1;
 
         is_valid_ = false;
     }
