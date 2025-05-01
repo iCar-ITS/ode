@@ -21,8 +21,11 @@ find_package(PCL 1.3 REQUIRED)
 find_package(pcl_ros REQUIRED)
 find_package(OpenCV REQUIRED )
 find_package(cv_bridge REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 include_directories(${OpenCV_INCLUDE_DIRS})
+
+
 
 add_executable(record src/record.cpp)
 target_include_directories(record PUBLIC
@@ -43,7 +46,29 @@ target_link_libraries(record
   ${PCL_LIBRARIES}
   ${OpenCV_LIBS})
 
-install(TARGETS record
+
+
+add_executable(replay src/play.cpp)
+target_compile_features(replay PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+ament_target_dependencies(replay
+  rclcpp
+  std_msgs
+  geometry_msgs
+  nav_msgs
+  sensor_msgs
+  std_srvs
+  pcl_ros
+  cv_bridge)
+
+target_link_libraries(replay
+  ${PCL_LIBRARIES}
+  ${OpenCV_LIBS}
+  yaml-cpp::yaml-cpp)
+
+
+
+
+install(TARGETS record replay
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY config launch

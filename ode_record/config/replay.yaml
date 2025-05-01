@@ -1,0 +1,13 @@
+replay:
+  ros__parameters:
+    record_dir: '/home/zainir17/ta_ws/record/ode_record_29042025_130138' # Directory to save the recordings
+    # lidar_list:
+    #   - '/velodynekiri/velodyne_points'
+    #   - '/lidartengah/lidar_points'
+    #   - '/velodynekanan/velodyne_points'
+    camera_list:
+      # - '/camerakiri/image_raw'
+      - '/cameratengah/image_raw'
+      # - '/camerakanan/image_raw'
+    # navsat_topic: '/gps/fix' # GPS topic
+    period: 0.1 #second

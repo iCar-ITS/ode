@@ -1,0 +1,35 @@
+cameratengah:
+  undistort_node:
+    ros__parameters:
+      topic_name: /cameratengah
+      image_width: 854
+      camera_matrix: [
+        415.56230017, 0.0         , 438.75190736, 
+        0.0         , 415.68708715, 236.77811114,
+        0.0         , 0.0         , 1.0        
+      ]
+      dist_coeff: [-0.30610413,  0.1063158,  0.00693642, -0.00283226, -0.01771309]
+
+camerakiri:
+  undistort_node:
+    ros__parameters:
+      topic_name: /camerakiri
+      image_width: 854
+      camera_matrix: [
+        415.56230017, 0.0         , 438.75190736, 
+        0.0         , 415.68708715, 236.77811114,
+        0.0         , 0.0         , 1.0        
+      ]
+      dist_coeff: [-0.30610413,  0.1063158,  0.00693642, -0.00283226, -0.01771309]
+
+camerakanan:
+  undistort_node:
+    ros__parameters:
+      topic_name: /camerakanan
+      image_width: 854
+      camera_matrix: [
+        415.56230017, 0.0         , 438.75190736, 
+        0.0         , 415.68708715, 236.77811114,
+        0.0         , 0.0         , 1.0        
+      ]
+      dist_coeff: [-0.30610413,  0.1063158,  0.00693642, -0.00283226, -0.01771309]
