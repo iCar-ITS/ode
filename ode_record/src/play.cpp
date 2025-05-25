@@ -19,6 +19,7 @@ public:
     this->declare_parameter("camera_list", std::vector<std::string>());
     this->declare_parameter("navsat_topic", std::string());
     this->declare_parameter("period", 0.0);
+    this->declare_parameter("repeat", false);
   }
 
   void init() 
@@ -113,9 +114,17 @@ public:
 
       if(is_finish)
       {
-        RCLCPP_INFO(this->get_logger(), "All topics have been finished.");
-        rclcpp::shutdown();
-        while(rclcpp::ok());
+        if(this->get_parameter("repeat").as_bool() && is_sync_)
+        {
+          seq = 0;
+          is_finish = false;
+        }
+        else 
+        {
+          RCLCPP_INFO(this->get_logger(), "All topics have been finished.");
+          rclcpp::shutdown();
+          while(rclcpp::ok());
+        }
       }
 
     seq++;

@@ -1,6 +1,6 @@
 record:
   ros__parameters:
-    output_dir: '/home/omodapc/ros2-icar/record' # Directory to save the recordings
+    output_dir: '/home/zainir17/ta_ws/record' # Directory to save the recordings
     lidar_list:
       - '/velodynekanan/velodyne_points'
       - '/lidartengah/lidar_points'
@@ -9,5 +9,5 @@ record:
       - '/camerakiri/image_raw'
       - '/cameratengah/image_raw'
       - '/camerakanan/image_raw'
-    navsat_topic: '/fix' # GPS topic
-    samp_time: 10.0 #seconds
+    # navsat_topic: '/fix' # GPS topic
+    samp_time: 0.2 #seconds

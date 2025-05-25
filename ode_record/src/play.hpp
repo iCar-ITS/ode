@@ -234,7 +234,9 @@ public:
 
     bool is_finish()
     {
-        return is_finish_;
+        bool stat = is_finish_;
+        is_finish_ = false;
+        return stat;
     }
 
     virtual void pub_record() = 0;

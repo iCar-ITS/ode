@@ -96,7 +96,16 @@ class RectifyNode : public rclcpp::Node
           RCLCPP_ERROR(this->get_logger(), "Failed to convert image.");
           return;
       }
-      auto image = resize_image(im->image, this->get_parameter("image_width").as_int());
+      cv::Mat image;
+      try
+      {
+        cv::cvtColor(im->image, image, cv::COLOR_YUV2BGR_YUYV);
+      }
+      catch (const cv::Exception& e)
+      {
+        image = im->image;
+      }
+      image = resize_image(image, this->get_parameter("image_width").as_int());
 
       if(!is_init_)
       {
@@ -108,6 +117,7 @@ class RectifyNode : public rclcpp::Node
           CV_16SC2, map1, map2);
 
         is_init_ = true;
+        RCLCPP_INFO(this->get_logger(), "Camera matrix: %s", topic_.c_str());
       }
         
       cv::Mat rect_image;
@@ -118,9 +128,11 @@ class RectifyNode : public rclcpp::Node
       
       cv_bridge::CvImage cv_image;
       cv_image.image = rect_image;
-      cv_image.encoding = sensor_msgs::image_encodings::BGR8;
+      cv_image.encoding = "bgr8";
       cv_image.header.stamp = this->now();
       cv_image.toImageMsg(rect_msg);
+
+      rect_msg.header.frame_id = msg.header.frame_id;
       
       pub_->publish(rect_msg);
     }

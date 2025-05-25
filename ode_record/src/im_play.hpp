@@ -22,6 +22,7 @@ private:
     sensor_msgs::msg::CameraInfo camera_info_msg_;
 
     bool is_init_ = false;
+    bool has_camera_info_ = false;
     
 public:
     ImagePlay(
@@ -42,17 +43,27 @@ public:
         {
             info_topic_name = topic_name.substr(0, last_slash_pos);
         }
-
-        read_camera_info();
         
-        info_pub_ = node->create_publisher<sensor_msgs::msg::CameraInfo>(
-            info_topic_name + "/camera_info",
-            5);
-
-        set_camera_info_srv_ = node->create_service<sensor_msgs::srv::SetCameraInfo>(
-            info_topic_name + "/set_camera_info",
-            std::bind(&ImagePlay::set_camera_info_callback, this,
-                std::placeholders::_1, std::placeholders::_2));
+        try
+        {
+            read_camera_info();
+            
+            info_pub_ = node->create_publisher<sensor_msgs::msg::CameraInfo>(
+                info_topic_name + "/camera_info",
+                5);
+    
+            set_camera_info_srv_ = node->create_service<sensor_msgs::srv::SetCameraInfo>(
+                info_topic_name + "/set_camera_info",
+                std::bind(&ImagePlay::set_camera_info_callback, this,
+                            std::placeholders::_1, std::placeholders::_2));
+                    
+            has_camera_info_ = true;
+        } 
+        catch (const std::exception& e)
+        {
+            RCLCPP_ERROR(node->get_logger(), "Error reading camera info: %s", e.what());
+            // throw std::runtime_error("Error reading camera info");
+        }
 
     }
 
@@ -82,8 +93,11 @@ public:
 
         auto now = node()->now();
 
-        camera_info_msg_.header.stamp = now;
-        info_pub_->publish(camera_info_msg_);
+        if(has_camera_info_)
+        {
+            camera_info_msg_.header.stamp = now;
+            info_pub_->publish(camera_info_msg_);
+        }
 
         msg.header.stamp = now;
 
@@ -91,12 +105,12 @@ public:
     }
 
     void set_camera_info_callback(
-        const std::shared_ptr<sensor_msgs::srv::SetCameraInfo::Request> request,
+        [[maybe_unused]] const std::shared_ptr<sensor_msgs::srv::SetCameraInfo::Request> request,
         std::shared_ptr<sensor_msgs::srv::SetCameraInfo::Response> response)
     {
         // Handle the camera info setting here
         // RCLCPP_INFO(node()->get_logger(), "Setting camera info");
-        
+        // request;
         response->success = true;
     }
 

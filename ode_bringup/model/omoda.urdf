@@ -34,6 +34,11 @@
     <link name="camerakanan">
     </link>
 
+    <link name="cameracalib">
+    </link>
+
+
+
     <joint name="base_joint" type="fixed">
         <parent link="base_link" />
         <child link="base_lidar" />
@@ -79,13 +84,25 @@
     <joint name="cameratengah_joint" type="fixed">
         <parent link="base_lidar" />
         <child link="cameratengah" />
-        <origin xyz="0.3585 0.0 0.19" rpy="0.0 0.0 0.0" />
+        <origin xyz="0.4685 -0.093 0.61" rpy="0.0 -0.07  -0.01195" />
     </joint>
+
+    <!-- <joint name="cameratengah_joint" type="fixed">
+        <parent link="base_lidar" />
+        <child link="cameratengah" />
+        <origin xyz="0.3585 0.0 0.19" rpy="0.0 0.0 0.0" />
+    </joint> -->
 
     <joint name="camerakanan_joint" type="fixed">
         <parent link="base_lidar" />
         <child link="camerakanan" />
         <origin xyz="0.240546 -0.2273 0.19" rpy="0.0 0.0 -0.959931089" />
+    </joint>
+
+    <joint name="cameracalib_joint" type="fixed">
+        <parent link="lidartengah" />
+        <child link="cameracalib" />
+        <origin xyz="0.57446866 -0.08339404 -1.0530726" rpy="0.75612054 -1.02291871  0.89599662" />
     </joint>
 
 </robot>
