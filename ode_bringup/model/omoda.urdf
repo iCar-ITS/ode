@@ -84,7 +84,7 @@
     <joint name="cameratengah_joint" type="fixed">
         <parent link="base_lidar" />
         <child link="cameratengah" />
-        <origin xyz="0.4685 -0.093 0.61" rpy="0.0 -0.07  -0.01195" />
+        <origin xyz="0.4685 -0.093 0.18" rpy="0.0 -0.07  -0.01195" />
     </joint>
 
     <!-- <joint name="cameratengah_joint" type="fixed">

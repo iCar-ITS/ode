@@ -21,6 +21,11 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <pcl/range_image/range_image.h>
 #include <yaml-cpp/yaml.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/features/normal_3d_omp.h>
+#include <pcl/features/don.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/common/colors.h>
 // #include <message_filters/subscriber.h>
 // #include <message_filters/time_synchronizer.h>
 
@@ -45,13 +50,13 @@ private:
     // Convert PointCloud2 to PCL PointCloud
     pcl::PointCloud<pcl::PointXYZ> cloud;
     pcl::fromROSMsg(*msg, cloud);
-    // RCLCPP_INFO(this->get_logger(), "Depth image started");
     
+    // Get the transform from "lidartengah" to "cameratengah"
     geometry_msgs::msg::TransformStamped transform_stamped;
     try {
       transform_stamped = tf_buffer_->lookupTransform(
             "cameratengah",  // e.g., "base_link"
-            "lidartengah",
+            "base_lidar",
             tf2::TimePointZero  // or rclcpp::Time(cloud->header.stamp)
           );
     } catch (tf2::TransformException &ex) {
@@ -59,126 +64,86 @@ private:
       return;
     }
 
+    // Apply the transform to the point cloud
     pcl::PointCloud<pcl::PointXYZ> pcl_cloud_transformed;
     pcl_ros::transformPointCloud(cloud, pcl_cloud_transformed, transform_stamped);
 
-    // int width = 854;
-    // int height = 480;
-
-    // float fx = cam_info_msg_.k.at(0);
-    // float fy = cam_info_msg_.k.at(4);
-    // float cx = cam_info_msg_.k.at(2); // optical center x
-    // float cy = cam_info_msg_.k.at(5); // optical center y
-
-    // float fov_x = 2.f * atan(width / (2.f * fx));  // horizontal FOV (radian)
-    // float fov_y = 2.f * atan(height / (2.f * fy)); // vertical FOV (radian)
-    // float angular_resolution = std::min(fov_x / width, fov_y / height);
-
-    // auto rot_matrix = Eigen::Matrix3f();
-    // rot_matrix <<  0, -1,  0,
-    //                0,  0, -1,
-    //                1,  0,  0;
-    // // Eigen::Affine3f sensor_pose = rot_matrix;// * Eigen::Translation3f(0, 0, 0);
-    // Eigen::Affine3f sensor_pose = Eigen::Affine3f::Identity();
-    // sensor_pose.linear() = rot_matrix.transpose();
-
-    // pcl::RangeImage range_image;
-    // range_image.createFromPointCloud(pcl_cloud_transformed,
-    //                                  angular_resolution,
-    //                                  fov_x,
-    //                                  fov_y,
-    //                                  sensor_pose,
-    //                                  pcl::RangeImage::CAMERA_FRAME);
-                                     
-    // int ri_width = range_image.width;
-    // int ri_height = range_image.height;
-
-    // cv::Mat depth_image(ri_height, ri_width, CV_32FC1);
-
-    // float max_range = 0.f;
-
-    // // Copy range dari pcl::RangeImage ke cv::Mat
-    // for (int y = 0; y < ri_height; ++y) {
-    //     for (int x = 0; x < ri_width; ++x) {
-    //         float range = range_image.getPoint(x, y).range;
-    //         depth_image.at<float>(y, x) = range;
-
-    //         if (range > max_range && std::isfinite(range)) {
-    //             max_range = range;
-    //         }
-    //     }
-    // }
-
+    // Initialize pin hole camera model
     cam_info_msg_.header = msg->header;
-
     image_geometry::PinholeCameraModel cam_model;
     cam_model.fromCameraInfo(cam_info_msg_);
 
     int width = 854;
     int height = 480;
     
+    // Image with depth values only
     cv::Mat depth_image = cv::Mat::zeros(height, width, CV_32FC1);
 
-    pcl::PointCloud<pcl::PointXYZ> projected_cloud;
+    // Cloud where the camera see the points
+    auto projected_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>());
 
     float max_range = 0.f;
 
+    // Loop through each point in the transformed point cloud
     for (const auto& point : pcl_cloud_transformed.points)
     {
       if (point.x > 0) // Ensure the point is in front of the camera
       {
-        // cv::Mat point_mat = (cv::Mat_<double>(4, 1) << -point.y, -point.z, point.x, 1.0);
+        
+        // Change the point coordinate system from "x to front" to "z to front"
         cv::Point3d point_3d(-point.y, -point.z, point.x);  
 
-        // cv::Mat uvw = projection_matrix * point_mat;
-
+        // Get the pixel coordinates in the image
         cv::Point2d uv = cam_model.project3dToPixel(point_3d);
 
-        const float max_depth = 50.0f; // Maximum depth value to consider
-        const float max_depth_inv = 1.0f / max_depth;
-        const float convexity = 3.0;
+        const float max_depth = 100.0f; // Maximum depth value to consider
 
         if (uv.x >= 0 && uv.x < width && uv.y >= 0 && uv.y < height)
         {
+          // Calculate the depth value (distance from the camera)
+          // Here we use the Euclidean distance from the camera origin
+          // to the point in 3D space
           float depth_value = std::hypot(point.x, point.y, point.z);
 
+          // Check if the depth value is within the maximum depth limit
           if(depth_value > max_depth) continue;
 
-          const float log_denom = 1.0f / std::log(1.f + convexity);
+          // Set the depth value in the depth image
+          // and also set the neighboring pixels to the same depth value
+          // This is to avoid holes in the depth image
+          depth_image.at<float>(uv.y, uv.x) = depth_value;
+          depth_image.at<float>(std::max(uv.y-1, 0.0), uv.x) = depth_value;
+          depth_image.at<float>(uv.y, std::max(uv.x-1, 0.0)) = depth_value;
+          depth_image.at<float>(std::max(uv.y-1, 0.0), std::max(uv.x-1, 0.0)) = depth_value;
 
-          float norm_depth = depth_value * max_depth_inv;
-          // depth_value = (1 - exp(-5.0 * norm_depth)) * max_depth; // Exponential decay function
-          depth_value = (std::log(convexity * norm_depth + 1.0) * log_denom) * max_depth; // Logarithmic function
-
-          // if(depth_value < 6.0)
-          {
-            // depth_value = 0.0;
-            depth_image.at<float>(uv.y, uv.x) = depth_value;
-            depth_image.at<float>(std::max(uv.y-1, 0.0), uv.x) = depth_value;
-            depth_image.at<float>(uv.y, std::max(uv.x-1, 0.0)) = depth_value;
-            depth_image.at<float>(std::max(uv.y-1, 0.0), std::max(uv.x-1, 0.0)) = depth_value;
-          }
+          // Update the maximum range if the current depth value is greater
           if (depth_value > max_range && std::isfinite(depth_value)) {
             max_range = depth_value;
           }
 
-          projected_cloud.push_back(point);
+          // Add the point to the projected cloud
+          projected_cloud->points.push_back(point);
         }
       }
     }
 
+    // Process the depth image
     cv::Mat depth_display;
     depth_image.setTo(0, depth_image != depth_image); // NaN jadi 0
     depth_image.convertTo(depth_display, CV_8U, 255.0f / max_range);
     cv::resize(depth_display, depth_display, cv::Size(width, height), 0.5, 0.5, cv::INTER_LINEAR);
 
+    // Create a mask for the depth image only where point are exists
     cv::Mat mask_image;
     cv::threshold(depth_display, mask_image, 1, 255, cv::THRESH_BINARY);
 
+    // Apply a colormap to the depth image for better visualization
     cv::applyColorMap(depth_display, depth_display, cv::COLORMAP_JET);
 
+    // Check if the image message is received
     if(!is_) return;
 
+    // Create an overlay image with the original image
     auto im = cv_bridge::toCvCopy(image_msg_, "bgr8");
     cv::Mat overlay_image = im->image.clone();
 
@@ -187,25 +152,48 @@ private:
     // Convert to ROS Image message
     sensor_msgs::msg::Image img_msg;
     cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", overlay_image).toImageMsg(img_msg);
-    // cv_bridge::CvImage(std_msgs::msg::Header(), "32FC1", depth_image).toImageMsg(img_msg);
     img_msg.header.stamp = this->now();
     img_msg.header.frame_id = msg->header.frame_id;
 
     // Publish the depth image
     depth_pub_->publish(img_msg);
 
+    // Filtering the road in projected cloud
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+    tree->setInputCloud(projected_cloud);
+
+    pcl::PointCloud<pcl::PointNormal>::Ptr prj_norm_cloud (new pcl::PointCloud<pcl::PointNormal>);
+    pcl::NormalEstimationOMP<pcl::PointXYZ, pcl::PointNormal> ne;
+    ne.setInputCloud(projected_cloud);
+    ne.setSearchMethod(tree);
+    ne.setViewPoint(std::numeric_limits<float>::max (), std::numeric_limits<float>::max (), std::numeric_limits<float>::max ());
+    ne.setKSearch(25);
+    // ne.setRadiusSearch(2.0);
+    ne.compute(*prj_norm_cloud);
+
+    auto proj_filt_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+
+    for(auto i = 0; i < prj_norm_cloud->points.size(); ++i)
+    {
+      auto& point = prj_norm_cloud->points[i];
+      // Convert the normal vector to a unit vector
+      Eigen::Vector3f normal(point.normal_x, point.normal_y, point.normal_z);
+      normal.normalize();
+
+      // Check if the normal vector is pointing upwards (z-axis)
+      if (std::abs(normal.z()) < 0.9) {
+        proj_filt_cloud->points.push_back(projected_cloud->points[i]);
+      }
+    }
+
     // Convert the projected cloud to a ROS PointCloud2 message
     sensor_msgs::msg::PointCloud2 proj_msg;
-    pcl::toROSMsg(projected_cloud, proj_msg);
+    pcl::toROSMsg(*proj_filt_cloud, proj_msg);
     proj_msg.header.stamp = img_msg.header.stamp;
-    proj_msg.header.frame_id = img_msg.header.frame_id;
+    proj_msg.header.frame_id = "cameratengah";
 
     // Publish the projected cloud
     proj_pub_->publish(proj_msg);
-
-    // cv::imshow("Depth Image", overlay_image);
-
-    // RCLCPP_INFO(this->get_logger(), "Depth image published");
   }
 
 public:

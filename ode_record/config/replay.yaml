@@ -12,5 +12,5 @@ replay:
       - '/cameratengah/image_raw'
       - '/camerakanan/image_raw'
     # navsat_topic: '/gps/fix' # GPS topic
-    period: 1.0 #second
+    period: 0.2 #second
     repeat: true
