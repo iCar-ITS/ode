@@ -48,6 +48,30 @@ def generate_launch_description():
         executable="pcl_concat",
     )
 
+    labeling = Node(
+        package='ode_label',
+        executable='labeling',
+        parameters=[{
+            "save_path": "/home/zainir17/ta_ws/record/united",
+            "start_seq": 6556,
+            "k_max_value": 128,
+            "k_min_value": 8,
+            }],
+        output='screen',
+    )
+
+    yolo = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            "/home/zainir17/ta_ws/src/YOLOv5_ROS2-YOu-can-Leverage-On-ROS2/yolov5_ros2/launch/yolov5_ros2_node.launch.py"
+        ),
+        launch_arguments={
+            "sub_topic": "/cameratengah/image_rect",
+            "pub_topic": "/yolov5/image",
+            "weights": "/home/zainir17/ta_ws/src/yolov5_ros2/yolov5_ros2/weights/yolov5s.pt",
+            "device": "",
+        }.items()
+    )
+
     return LaunchDescription(
         [
             DeclareLaunchArgument(
@@ -60,5 +84,7 @@ def generate_launch_description():
             camera_rectify_node2,
             viz_pcl2depth,
             pcl_concate,
+            labeling,
+            yolo,
         ]
     )

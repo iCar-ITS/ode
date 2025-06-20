@@ -102,7 +102,7 @@ public:
     sensor_msgs::msg::PointCloud2 output;
     pcl::toROSMsg(cloud[0], output);
     output.header.frame_id = "base_lidar"; // Set the frame_id for the output message
-    output.header.stamp = this->now(); // Set the timestamp for the output message
+    output.header.stamp = msg2->header.stamp; // Set the timestamp for the output message
 
     // Publish the concatenated point cloud 
     pub_->publish(output);  

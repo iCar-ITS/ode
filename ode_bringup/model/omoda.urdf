@@ -34,8 +34,8 @@
     <link name="camerakanan">
     </link>
 
-    <link name="cameracalib">
-    </link>
+    <!-- <link name="cameracalib">
+    </link> -->
 
 
 
@@ -99,10 +99,10 @@
         <origin xyz="0.240546 -0.2273 0.19" rpy="0.0 0.0 -0.959931089" />
     </joint>
 
-    <joint name="cameracalib_joint" type="fixed">
+    <!-- <joint name="cameracalib_joint" type="fixed">
         <parent link="lidartengah" />
         <child link="cameracalib" />
         <origin xyz="0.57446866 -0.08339404 -1.0530726" rpy="0.75612054 -1.02291871  0.89599662" />
-    </joint>
+    </joint> -->
 
 </robot>

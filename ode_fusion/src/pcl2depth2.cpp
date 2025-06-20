@@ -1,43 +1,66 @@
 #include <cstdio>
 #include <cmath>
 #include <limits>
+
 #include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/point_cloud2.hpp>
-#include <sensor_msgs/msg/image.hpp>
+
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <image_geometry/pinhole_camera_model.h>
+
+#include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <sensor_msgs/point_cloud2_iterator.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/buffer.h>
+
+#include <yaml-cpp/yaml.h>
+
 #include <pcl/point_types.h>
 #include <pcl/conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/filters/filter.h>
-#include <pcl_conversions/pcl_conversions.h>
-#include <image_geometry/pinhole_camera_model.h>
-#include <sensor_msgs/msg/camera_info.hpp>
-#include <sensor_msgs/point_cloud2_iterator.hpp>
-#include <pcl_conversions/pcl_conversions.h>
-#include <pcl_ros/transforms.hpp>
-#include <tf2_ros/transform_listener.h>
-#include <tf2_ros/buffer.h>
-#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <pcl/range_image/range_image.h>
-#include <yaml-cpp/yaml.h>
 #include <pcl/search/kdtree.h>
 #include <pcl/features/normal_3d_omp.h>
-#include <pcl/features/don.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/common/colors.h>
-// #include <message_filters/subscriber.h>
-// #include <message_filters/time_synchronizer.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl_ros/transforms.hpp>
+
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.hpp>
+#include <message_filters/message_traits.hpp>
+#include <message_filters/cache.hpp>
 
 class Pcl2DepthNode : public rclcpp::Node
 {
 private:
+  using SubsSyncPolicy = message_filters::sync_policies::ApproximateTime
+                      <sensor_msgs::msg::PointCloud2, sensor_msgs::msg::Image>;
+
+  using SubsSync = message_filters::Synchronizer
+                    <SubsSyncPolicy>;
+
+  std::shared_ptr<SubsSync> synchronizers_;
+
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pcl_sub_;
+  // rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr im_sub_;
+
+  // message_filters::Subscriber<sensor_msgs::msg::PointCloud2> pcl_sub_;
+  message_filters::Subscriber<sensor_msgs::msg::Image>im_sub_;
+
+  std::shared_ptr<message_filters::Cache<sensor_msgs::msg::Image>> im_cache_;
+
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depth_map_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr depth_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr proj_pub_;
-  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr im_sub_;
 
-  sensor_msgs::msg::Image image_msg_;
+  // sensor_msgs::msg::Image image_msg_;
   sensor_msgs::msg::CameraInfo cam_info_msg_;
 
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
@@ -45,11 +68,44 @@ private:
 
   bool is_ = false;
 
-  void pcl_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+  rclcpp::Duration abs_time_diff(const rclcpp::Time& t1, const rclcpp::Time& t2)
   {
+    return (t1 > t2) ? (t1 - t2) : (t2 - t1);
+  }
+
+  // void pcl_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+  // {
+  // void callback(
+  //   const sensor_msgs::msg::PointCloud2::ConstSharedPtr& pcl_msg, 
+  //   const sensor_msgs::msg::Image::ConstSharedPtr& im_msg)
+  // {
+  void callback(
+    const sensor_msgs::msg::PointCloud2::ConstSharedPtr& pcl_msg)
+  {
+    // Sync the point cloud and image messages
+    rclcpp::Time b_time = pcl_msg->header.stamp;
+
+    rclcpp::Duration window(0, 100 * 1000000);  // ±150 ms window
+    auto im_candidates = im_cache_->getInterval(b_time - window, b_time + window);
+    if (im_candidates.empty()) {
+      RCLCPP_DEBUG(this->get_logger(), "No image message found near point cloud timestamp");
+      return;
+    }
+
+    sensor_msgs::msg::Image::ConstSharedPtr im_msg = nullptr;
+    rclcpp::Duration min_diff = rclcpp::Duration::from_seconds(1000);
+
+    for (auto& msg : im_candidates) {
+      rclcpp::Duration diff = abs_time_diff(b_time, msg->header.stamp);\
+      if (diff < min_diff) {
+        min_diff = diff;
+        im_msg = msg;
+      }
+    }
+
     // Convert PointCloud2 to PCL PointCloud
     pcl::PointCloud<pcl::PointXYZ> cloud;
-    pcl::fromROSMsg(*msg, cloud);
+    pcl::fromROSMsg(*pcl_msg, cloud);
     
     // Get the transform from "lidartengah" to "cameratengah"
     geometry_msgs::msg::TransformStamped transform_stamped;
@@ -69,7 +125,7 @@ private:
     pcl_ros::transformPointCloud(cloud, pcl_cloud_transformed, transform_stamped);
 
     // Initialize pin hole camera model
-    cam_info_msg_.header = msg->header;
+    cam_info_msg_.header = im_msg->header;
     image_geometry::PinholeCameraModel cam_model;
     cam_model.fromCameraInfo(cam_info_msg_);
 
@@ -89,7 +145,6 @@ private:
     {
       if (point.x > 0) // Ensure the point is in front of the camera
       {
-        
         // Change the point coordinate system from "x to front" to "z to front"
         cv::Point3d point_3d(-point.y, -point.z, point.x);  
 
@@ -107,6 +162,10 @@ private:
 
           // Check if the depth value is within the maximum depth limit
           if(depth_value > max_depth) continue;
+
+          auto& depth_pixel = depth_image.at<float>(uv.y, uv.x);
+          if(depth_pixel > 0)
+            depth_value = std::min(depth_image.at<float>(uv.y, uv.x), depth_value);
 
           // Set the depth value in the depth image
           // and also set the neighboring pixels to the same depth value
@@ -127,11 +186,13 @@ private:
       }
     }
 
+    
     // Process the depth image
-    cv::Mat depth_display;
     depth_image.setTo(0, depth_image != depth_image); // NaN jadi 0
+    cv::resize(depth_image, depth_image, cv::Size(width, height), 0.5, 0.5, cv::INTER_LINEAR);
+
+    cv::Mat depth_display;
     depth_image.convertTo(depth_display, CV_8U, 255.0f / max_range);
-    cv::resize(depth_display, depth_display, cv::Size(width, height), 0.5, 0.5, cv::INTER_LINEAR);
 
     // Create a mask for the depth image only where point are exists
     cv::Mat mask_image;
@@ -141,10 +202,10 @@ private:
     cv::applyColorMap(depth_display, depth_display, cv::COLORMAP_JET);
 
     // Check if the image message is received
-    if(!is_) return;
+    // if(!is_) return;
 
     // Create an overlay image with the original image
-    auto im = cv_bridge::toCvCopy(image_msg_, "bgr8");
+    auto im = cv_bridge::toCvCopy(im_msg, "bgr8");
     cv::Mat overlay_image = im->image.clone();
 
     depth_display.copyTo(overlay_image, mask_image);
@@ -152,11 +213,19 @@ private:
     // Convert to ROS Image message
     sensor_msgs::msg::Image img_msg;
     cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", overlay_image).toImageMsg(img_msg);
-    img_msg.header.stamp = this->now();
-    img_msg.header.frame_id = msg->header.frame_id;
+    img_msg.header.stamp = pcl_msg->header.stamp;
+    img_msg.header.frame_id = "cameratengah"; //im_msg->header.frame_id;
+
+    sensor_msgs::msg::Image depth_img_msg;
+    cv_bridge::CvImage(std_msgs::msg::Header(), "32FC1", depth_image).toImageMsg(depth_img_msg);
+    depth_img_msg.header.stamp = pcl_msg->header.stamp;
+    depth_img_msg.header.frame_id = "cameratengah"; //im_msg->header.frame_id;
 
     // Publish the depth image
-    depth_pub_->publish(img_msg);
+    depth_map_pub_->publish(img_msg);
+    depth_pub_->publish(depth_img_msg);
+
+    /***** PCL area ******/
 
     // Filtering the road in projected cloud
     pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
@@ -168,12 +237,11 @@ private:
     ne.setSearchMethod(tree);
     ne.setViewPoint(std::numeric_limits<float>::max (), std::numeric_limits<float>::max (), std::numeric_limits<float>::max ());
     ne.setKSearch(25);
-    // ne.setRadiusSearch(2.0);
     ne.compute(*prj_norm_cloud);
 
     auto proj_filt_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
 
-    for(auto i = 0; i < prj_norm_cloud->points.size(); ++i)
+    for(size_t i = 0; i < prj_norm_cloud->points.size(); ++i)
     {
       auto& point = prj_norm_cloud->points[i];
       // Convert the normal vector to a unit vector
@@ -189,8 +257,8 @@ private:
     // Convert the projected cloud to a ROS PointCloud2 message
     sensor_msgs::msg::PointCloud2 proj_msg;
     pcl::toROSMsg(*proj_filt_cloud, proj_msg);
-    proj_msg.header.stamp = img_msg.header.stamp;
-    proj_msg.header.frame_id = "cameratengah";
+    proj_msg.header.stamp = pcl_msg->header.stamp;
+    proj_msg.header.frame_id = "cameratengah"; //im_msg->header.frame_id;
 
     // Publish the projected cloud
     proj_pub_->publish(proj_msg);
@@ -243,18 +311,36 @@ public:
     cam_info_msg_.header.frame_id = "cameratengah";
 
     pcl_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-      "/pcl_concat/lidar_points", 10, std::bind(&Pcl2DepthNode::pcl_callback, this, std::placeholders::_1));
+      "/pcl_concat/lidar_points", 10, std::bind(&Pcl2DepthNode::callback, this, std::placeholders::_1));
       
-    im_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-      "/cameratengah/image_rect", 10, [this](const sensor_msgs::msg::Image::SharedPtr msg) {
-        // RCLCPP_INFO(rclcpp::get_logger("pcl2depth_node"), "Received image");
-        static sensor_msgs::msg::Image neat_image_msg;
-        static bool neat_is = false;
-        image_msg_ = neat_image_msg;
-        neat_image_msg = *msg;
-        if(neat_is) is_ = true;
-        neat_is = true;
-      });
+    // im_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+    //   "/cameratengah/image_rect", 10, [this](const sensor_msgs::msg::Image::SharedPtr msg) {
+    //     // RCLCPP_INFO(rclcpp::get_logger("pcl2depth_node"), "Received image");
+    //     static sensor_msgs::msg::Image neat_image_msg;
+    //     static bool neat_is = false;
+    //     image_msg_ = neat_image_msg;
+    //     neat_image_msg = *msg;
+    //     if(neat_is) is_ = true;
+    //     neat_is = true;
+    //   });
+
+    // pcl_sub_.subscribe(this, "/pcl_concat/lidar_points");
+    im_sub_.subscribe(this, "/cameratengah/image_rect");
+
+    im_cache_ = std::make_shared<message_filters::Cache<sensor_msgs::msg::Image>>(im_sub_, 5);
+    im_cache_->setCacheSize(5);
+
+    // pcl_sub_.registerCallback(
+    //   std::bind(&Pcl2DepthNode::callback, this, std::placeholders::_1));
+
+    // synchronizers_ = std::make_shared<SubsSync>(SubsSyncPolicy(10), pcl_sub_, *im_cache_);
+    // synchronizers_->setAgePenalty(10.1);
+    // synchronizers_->registerCallback(
+    //   std::bind(&Pcl2DepthNode::callback, this, std::placeholders::_1, std::placeholders::_2));
+
+
+    depth_map_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
+      "depth_map_image", 10);
 
     depth_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
       "depth_image", 10);

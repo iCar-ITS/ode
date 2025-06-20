@@ -129,10 +129,9 @@ class RectifyNode : public rclcpp::Node
       cv_bridge::CvImage cv_image;
       cv_image.image = rect_image;
       cv_image.encoding = "bgr8";
-      cv_image.header.stamp = this->now();
       cv_image.toImageMsg(rect_msg);
 
-      rect_msg.header.frame_id = msg.header.frame_id;
+      rect_msg.header = msg.header;
       
       pub_->publish(rect_msg);
     }
