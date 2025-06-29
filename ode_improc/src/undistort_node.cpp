@@ -56,10 +56,10 @@ class RectifyNode : public rclcpp::Node
         dist_coeff_mtx_.at<double>(0,i) = dist_coeff_vec[i];
       }
 
-      pub_ = this->create_publisher<sensor_msgs::msg::Image>(topic_+"/image_rect", 5);
+      pub_ = this->create_publisher<sensor_msgs::msg::Image>(topic_+"/image_rect", rclcpp::SensorDataQoS());
 
       sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-        topic_+"/image_raw", 5, std::bind(&RectifyNode::callback, this, std::placeholders::_1));
+        topic_+"/image_raw", rclcpp::SensorDataQoS(), std::bind(&RectifyNode::callback, this, std::placeholders::_1));
         
     }
 

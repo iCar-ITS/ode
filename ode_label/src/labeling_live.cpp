@@ -18,7 +18,7 @@
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
 
-class LabelingNode : public rclcpp::Node
+class LiveLabelingNode : public rclcpp::Node
 {
 private:
 
@@ -229,7 +229,7 @@ private:
     seq_ += 1;
   }
 public:
-  LabelingNode() : Node("labeling_node"), seq_(0)
+LiveLabelingNode() : Node("live_labeling_node"), seq_(0)
   {
     this->declare_parameter("save_path", std::string());
     this->declare_parameter("start_seq", 0);
@@ -258,24 +258,20 @@ public:
     std::filesystem::create_directories(save_path_+"/annotated_data/");
 
     depth_image_sub_.subscribe(this, "/depth_image", rmw_qos_profile_sensor_data);
-    depth_image_sub_.registerCallback(std::bind(&LabelingNode::callback, this, std::placeholders::_1));
+    depth_image_sub_.registerCallback(std::bind(&LiveLabelingNode::callback, this, std::placeholders::_1));
 
     rgb_image_sub_.subscribe(this, "/cameratengah/image_rect", rmw_qos_profile_sensor_data);
     rgb_cache_ = std::make_shared<message_filters::Cache<sensor_msgs::msg::Image>>(rgb_image_sub_, 4);
 
     boxes_sub_.subscribe(this, "/yolov5/image/bounding_boxes", rmw_qos_profile_sensor_data);
     boxes_cache_ = std::make_shared<message_filters::Cache<boundingboxes::msg::BoundingBoxes>>(boxes_sub_, 4);
-    // sync_ = std::make_shared<Sync>(SyncPolicy(10), image_sub_, boxes_sub_);
-
-    // sync_->registerCallback(std::bind(&LabelingNode::callback, this,
-    //   std::placeholders::_1, std::placeholders::_2));
   }
 };
 
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<LabelingNode>();
+  auto node = std::make_shared<LiveLabelingNode>();
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;

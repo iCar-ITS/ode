@@ -8,8 +8,8 @@ replay:
     # record_dir: '/media/zainir17/4C2A3ED34D527E98/Record/rec/ode_record_17052025_104723'
     # record_dir: '/media/zainir17/4C2A3ED34D527E98/Record/rec/ode_record_17052025_153405'
     # record_dir: '/media/zainir17/4C2A3ED34D527E98/Record/rec/ode_record_19052025_155639'
-    # record_dir: '/media/zainir17/4C2A3ED34D527E98/Record/rec/ode_record_20052025_103134'
-    record_dir: '/media/zainir17/4C2A3ED34D527E98/Record/rec/ode_record_20052025_123849'
+    record_dir: '/media/zainir17/4C2A3ED34D527E98/Record/rec/ode_record_20052025_103134'
+    # record_dir: '/media/zainir17/4C2A3ED34D527E98/Record/rec/ode_record_20052025_123849'
     
     lidar_list:
       - '/velodynekiri/velodyne_points'
@@ -20,5 +20,5 @@ replay:
       - '/cameratengah/image_raw'
       # - '/camerakanan/image_raw'
     # navsat_topic: '/gps/fix' # GPS topic
-    period: 0.8 #second
+    period: 0.1 #second
     repeat: false

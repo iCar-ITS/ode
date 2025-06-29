@@ -39,3 +39,4 @@ compile_commands.json
 .vscode
 log
 /data
+ode_predict/weights/

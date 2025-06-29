@@ -47,7 +47,7 @@ public:
         RCLCPP_INFO(this->get_logger(), "Topic name: %s", topic_names[i].c_str());
         // auto sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>(this, topic_name);
         // subscribers_.push_back(sub);
-        subscribers_[i].subscribe(this, topic_names[i]);
+        subscribers_[i].subscribe(this, topic_names[i], rmw_qos_profile_sensor_data);
     }
 
     synchronizers_ = std::make_shared<PCL_Sync>(
