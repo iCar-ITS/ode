@@ -40,6 +40,6 @@ def generate_launch_description():
     return launch.LaunchDescription(
         [
             camera_driver_node2,
-            camera_rectify_node2
+            #camera_rectify_node2
         ]
     )

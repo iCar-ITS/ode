@@ -30,8 +30,20 @@ ament_target_dependencies(labeling
   cv_bridge
   message_filters
   boundingboxes)
+  
+add_executable(live_labeling src/labeling_live.cpp)
+target_link_libraries(live_labeling
+  ${OpenCV_LIBS})
 
-install(TARGETS labeling
+ament_target_dependencies(live_labeling
+  rclcpp
+  std_msgs
+  sensor_msgs
+  cv_bridge
+  message_filters
+  boundingboxes)
+
+install(TARGETS labeling live_labeling
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

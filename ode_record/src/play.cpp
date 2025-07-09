@@ -9,7 +9,12 @@ private:
   std::vector<std::shared_ptr<PlayRecord>> pub_list_;
   rclcpp::TimerBase::SharedPtr sequence_timer_;
 
+  std::chrono::time_point<std::chrono::system_clock> start_time_;
+
+  double update_period_ = 0.0;
+
   bool is_sync_ = false;
+  bool is_burst_ = false;
 
 public:
   Play() : Node("replay_node")
@@ -20,6 +25,8 @@ public:
     this->declare_parameter("navsat_topic", std::string());
     this->declare_parameter("period", 0.0);
     this->declare_parameter("repeat", false);
+    this->declare_parameter("burst", false);
+    this->declare_parameter("burst_period", 1.0);
   }
 
   void init() 
@@ -61,14 +68,22 @@ public:
     // }
 
     // Create wall timer with period based on frequency parameter
-
-    auto period = this->get_parameter("period").as_double();
+    is_burst_ = this->get_parameter("burst").as_bool();
+    update_period_ = this->get_parameter("period").as_double();
     auto time_period = std::chrono::microseconds();
-    if(period > 0.0)
+    if(is_burst_)
+    {
+      RCLCPP_INFO(this->get_logger(), "Burst mode is enabled.");
+      auto burst_period = this->get_parameter("burst_period").as_double();
+      is_sync_ = true;
+      time_period = std::chrono::microseconds(int64_t(burst_period * 1000000));
+      RCLCPP_INFO(this->get_logger(), "Play period\t: %fs.", update_period_);
+    }
+    else if(update_period_ > 0.0)
     {
       is_sync_ = true;
-      time_period = std::chrono::microseconds(int64_t(period * 1000000));
-      RCLCPP_INFO(this->get_logger(), "Play period\t: %fs.", period);
+      time_period = std::chrono::microseconds(int64_t(update_period_ * 1000000));
+      RCLCPP_INFO(this->get_logger(), "Play period\t: %fs.", update_period_);
     }
     else 
     {
@@ -127,7 +142,17 @@ public:
         }
       }
 
-    seq++;
+    if(is_burst_) {
+      auto duration = std::chrono::system_clock::now() - start_time_;
+      if(duration > std::chrono::microseconds(int64_t(update_period_ * 1000000)))
+      {
+        start_time_ = std::chrono::system_clock::now();
+        seq++;
+      }
+    }
+    else {
+      seq++;
+    }
   }
 
 };  // class Play

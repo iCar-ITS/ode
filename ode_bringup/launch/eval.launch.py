@@ -38,30 +38,28 @@ def generate_launch_description():
         )
     )
 
-    # viz_pcl2depth = Node(
-    #     package="ode_fusion",
-    #     executable="pcl2depth2",
-    #     parameters=[{
-    #         "sync_queue": 20,
-    #     }],
-    # )
+    viz_pcl2depth = Node(
+        package="ode_fusion",
+        executable="pcl2depth2",
+        parameters=[{
+            "sync_queue": 20,
+        }],
+    )
 
-    # pcl_concate = Node(
-    #     package="ode_fusion",
-    #     executable="pcl_concat",
-    # )
+    pcl_concate = Node(
+        package="ode_fusion",
+        executable="pcl_concat",
+    )
 
-    # labeling = Node(
-    #     package='ode_label',
-    #     executable='labeling',
-    #     parameters=[{
-    #         "save_path": "/home/zainir17/ta_ws/record/united",
-    #         "start_seq": 6556,
-    #         "k_max_value": 128,
-    #         "k_min_value": 8,
-    #         }],
-    #     output='screen',
-    # )
+    labeling = Node(
+        package='ode_label',
+        executable='live_labeling',
+        parameters=[{
+            "k_max_value": 128,
+            "k_min_value": 8,
+            }],
+        output='screen',
+    )
 
     yolo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -99,8 +97,9 @@ def generate_launch_description():
             joint_state_publisher_node,
             robot_state_publisher_node,
             camera_rectify_node2,
-            # viz_pcl2depth,
-            # pcl_concate,
+            viz_pcl2depth,
+            pcl_concate,
+            labeling,
             pred,
             yolo,
         ]

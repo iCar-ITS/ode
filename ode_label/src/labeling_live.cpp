@@ -38,13 +38,15 @@ private:
     >;
 
   using Sync = message_filters::Synchronizer<SyncPolicy>;
-
+  
   message_filters::Subscriber<sensor_msgs::msg::Image> depth_image_sub_;
   message_filters::Subscriber<sensor_msgs::msg::Image> rgb_image_sub_;
   message_filters::Subscriber<boundingboxes::msg::BoundingBoxes> boxes_sub_;
 
   std::shared_ptr<message_filters::Cache<boundingboxes::msg::BoundingBoxes>> boxes_cache_;
   std::shared_ptr<message_filters::Cache<sensor_msgs::msg::Image>> rgb_cache_;
+
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr lab_image_pub_; 
 
   std::shared_ptr<Sync> sync_;
 
@@ -185,86 +187,61 @@ private:
       labels.push_back({class_index, mean, x_center, y_center, width, height});
     }
 
-    std::string seq_str;
-    {
-        std::stringstream ss;
-        ss << std::setw(10) << std::setfill('0') << seq_;
-        seq_str = ss.str();
-    }
-
-    // Save as dataset
-    std::ofstream dataset_file(save_path_ + "/data/" + seq_str + ".txt", std::ios::trunc | std::ios::out);
-    if (!dataset_file.is_open()) {
-      RCLCPP_ERROR(this->get_logger(), "Failed to open dataset file for writing");
-      return;
-    }
-    for (const auto& label : labels) {
-      dataset_file << label.id << " "
-                   << label.x_center << " "
-                   << label.y_center << " "
-                   << label.width << " "
-                   << label.height << " "
-                   << label.depth_value << "\n";
-    }
-    cv::imwrite(save_path_ + "/data/" + seq_str + ".jpg", bgr_image);
-
     // Save the labeled image with bounding boxes and annotations
     cv::Mat labeled_image = bgr_image.clone();
     for (const auto& label : labels) {
       std::stringstream label_stream;
-      label_stream << classes_[label.id] << " " << std::setprecision(2) << label.depth_value << "m";
+      label_stream << std::setprecision(2) << label.depth_value << "m";
 
       int xmin = static_cast<int>((label.x_center - label.width / 2.0f) * depth_image.cols);
       int ymin = static_cast<int>((label.y_center - label.height / 2.0f) * depth_image.rows);
       int xmax = static_cast<int>((label.x_center + label.width / 2.0f) * depth_image.cols);
       int ymax = static_cast<int>((label.y_center + label.height / 2.0f) * depth_image.rows);
 
+      // cv2.rectangle(img, (max(0, int(box[2])-1), int(box[4]) - 15), (min(max(int(box[1])+1, int(box[2]) + 50), w), int(box[4])), (0, 255, 0), -1)
+      // cv2.putText(img, f'{p.distance:.2f}m', (int(box[2]), int(box[4]) - 4),
+      //             cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
+
+      int labeled_image_width = labeled_image.cols;
+      int labeled_image_height = labeled_image.rows;
+
+      cv::rectangle(labeled_image, cv::Point(std::max(0, xmin-1), ymin-15), cv::Point(std::min(std::max(xmax+1, xmin+50), labeled_image_width), ymin), cv::Scalar(0, 255, 0), -1);
       cv::rectangle(labeled_image, cv::Point(xmin, ymin), cv::Point(xmax, ymax), cv::Scalar(0, 255, 0), 2);
-      cv::putText(labeled_image, label_stream.str(), cv::Point(xmin, ymin - 10), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0, 255, 0), 2);
+      cv::putText(labeled_image, label_stream.str(), cv::Point(xmin, ymin - 4), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(255, 0, 0), 2);
     }
 
-    cv::imwrite(save_path_ + "/annotated_data/" + seq_str + ".jpg", labeled_image);
-    
+    sensor_msgs::msg::Image msg;
 
-    seq_ += 1;
+    cv_bridge::CvImage cv_image;
+    cv_image.image = labeled_image;
+    cv_image.encoding = sensor_msgs::image_encodings::BGR8;
+    cv_image.header = rgb_msg->header;
+    cv_image.toImageMsg(msg);
+
+    lab_image_pub_->publish(msg);
+
+    // cv::imwrite(save_path_ + "/annotated_data/" + seq_str + ".jpg", labeled_image);
+    
   }
 public:
 LiveLabelingNode() : Node("live_labeling_node"), seq_(0)
   {
-    this->declare_parameter("save_path", std::string());
-    this->declare_parameter("start_seq", 0);
     this->declare_parameter("k_max_value", 32);
     this->declare_parameter("k_min_value", 8);
 
     k_max_value_ = this->get_parameter("k_max_value").as_int();
     k_min_value_ = this->get_parameter("k_min_value").as_int();
-    seq_ = this->get_parameter("start_seq").as_int();
-
-    save_path_ = this->get_parameter("save_path").as_string();
-
-    if (save_path_.empty()) {
-      RCLCPP_ERROR(this->get_logger(), "Save path is not set. Please set the 'save_path' parameter.");
-      return;
-    }
-
-    std::time_t now = std::time(0);
-    auto tm = *std::localtime(&now);
-    std::ostringstream oss;
-    oss << "/" << std::put_time(&tm, "%Y%m%d_%H%M%S");
-    save_path_ += oss.str();
-
-    std::filesystem::create_directories(save_path_+"/");
-    std::filesystem::create_directories(save_path_+"/data/");
-    std::filesystem::create_directories(save_path_+"/annotated_data/");
 
     depth_image_sub_.subscribe(this, "/depth_image", rmw_qos_profile_sensor_data);
     depth_image_sub_.registerCallback(std::bind(&LiveLabelingNode::callback, this, std::placeholders::_1));
 
     rgb_image_sub_.subscribe(this, "/cameratengah/image_rect", rmw_qos_profile_sensor_data);
-    rgb_cache_ = std::make_shared<message_filters::Cache<sensor_msgs::msg::Image>>(rgb_image_sub_, 4);
+    rgb_cache_ = std::make_shared<message_filters::Cache<sensor_msgs::msg::Image>>(rgb_image_sub_, 50);
 
     boxes_sub_.subscribe(this, "/yolov5/image/bounding_boxes", rmw_qos_profile_sensor_data);
-    boxes_cache_ = std::make_shared<message_filters::Cache<boundingboxes::msg::BoundingBoxes>>(boxes_sub_, 4);
+    boxes_cache_ = std::make_shared<message_filters::Cache<boundingboxes::msg::BoundingBoxes>>(boxes_sub_, 50);
+
+    lab_image_pub_ = this->create_publisher<sensor_msgs::msg::Image>("/labeled_image", 10);
   }
 };
 

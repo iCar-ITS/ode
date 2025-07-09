@@ -20,6 +20,11 @@ def generate_launch_description():
             description="Logging level",
         ),
         DeclareLaunchArgument(
+            "record_dir",
+            default_value=[""],
+            description="Logging level",
+        ),
+        DeclareLaunchArgument(
             name="config_file",
             default_value=param_dir_default,
             description="Path to config file",
@@ -29,7 +34,7 @@ def generate_launch_description():
             executable='replay',
             name='replay',
             output='screen',
-            parameters=[LaunchConfiguration('config_file')], 
+            parameters=[LaunchConfiguration('config_file'), {'record_dir':LaunchConfiguration('record_dir')}], 
             arguments=['--ros-args', '--log-level', logger]
         ),
     ])

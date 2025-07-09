@@ -53,9 +53,11 @@ def generate_launch_description():
         executable='labeling',
         parameters=[{
             "save_path": "/home/zainir17/ta_ws/record/united",
-            "start_seq": 6556,
+            "start_seq": 0,
             "k_max_value": 128,
-            "k_min_value": 8,
+            "k_min_value": 4,
+            "max_distance": 50.0,
+            "min_distance": 1.0,
             }],
         output='screen',
     )

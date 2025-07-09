@@ -4,6 +4,24 @@ replay:
     # record_dir: '/home/zainir17/ta_ws/record/ode_record_05052025_180230' # Directory to save the recordings #malam
 
     # record_dir: '/home/zainir17/ta_ws/record/ode_record_14052025_125755'
+
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_14052025_125755'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_14052025_090420'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_08052025_155626'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_07052025_121043'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_06052025_162344'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_06052025_124452'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_05052025_180230'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_04052025_190114'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_02052025_134250'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_01052025_150208'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_01052025_082139'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_27042025_113311'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_27042025_113158'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_27042025_111810'
+    # record_dir: '/media/zainir17/HD EXTERNAL/TA/Record/ode_record_27042025_105858'
+
     # record_dir: '/media/zainir17/4C2A3ED34D527E98/Record/rec/ode_record_16052025_124156'
     # record_dir: '/media/zainir17/4C2A3ED34D527E98/Record/rec/ode_record_17052025_104723'
     # record_dir: '/media/zainir17/4C2A3ED34D527E98/Record/rec/ode_record_17052025_153405'
@@ -20,5 +38,7 @@ replay:
       - '/cameratengah/image_raw'
       # - '/camerakanan/image_raw'
     # navsat_topic: '/gps/fix' # GPS topic
-    period: 0.1 #second
+    period: 1.0 #second
     repeat: false
+    # burst: true
+    # burst_period: 0.1 #second

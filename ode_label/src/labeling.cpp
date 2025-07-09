@@ -55,6 +55,8 @@ private:
   uint64_t seq_;
   uint32_t k_max_value_;
   uint32_t k_min_value_;
+  float max_distance_;
+  float min_distance_;
 
   rclcpp::Duration abs_time_diff(const rclcpp::Time& t1, const rclcpp::Time& t2)
   {
@@ -154,7 +156,7 @@ private:
       for (int i = 0; i < cropped_image.rows; ++i) {
         const float* row_ptr = cropped_image.ptr<float>(i);
         for (int j = 0; j < cropped_image.cols; ++j) {
-          if (row_ptr[j] > 0) {
+          if (row_ptr[j] > min_distance_) {
             non_zero_values.push_back(row_ptr[j]);
           }
         }
@@ -170,6 +172,11 @@ private:
       float mean = std::accumulate(non_zero_values.begin(), non_zero_values.begin() + k, 0.0f) / (float)k;
       RCLCPP_DEBUG(this->get_logger(), "Mean of %zu smallest non-zero values: %f", k, mean);
 
+      if(mean > max_distance_) {
+        // RCLCPP_DEBUG(this->get_logger(), "Mean depth value %f exceeds max distance %f, skipping box", mean, max_distance_);
+        continue;
+      }
+
       std::cout << "Class: " << box.class_id
                 << ", Bounding Box: [" << box.xmin << ", " << box.ymin
                 << ", " << box.xmax << ", " << box.ymax << "]"
@@ -184,6 +191,11 @@ private:
 
       labels.push_back({class_index, mean, x_center, y_center, width, height});
     }
+
+    // if(labels.empty()) {
+    //   RCLCPP_DEBUG(this->get_logger(), "No valid labels found, skipping saving data");
+    //   return;
+    // }
 
     std::string seq_str;
     {
@@ -235,10 +247,15 @@ public:
     this->declare_parameter("start_seq", 0);
     this->declare_parameter("k_max_value", 32);
     this->declare_parameter("k_min_value", 8);
+    this->declare_parameter("max_distance", 50.0);
+    this->declare_parameter("min_distance", 1.0);
 
     k_max_value_ = this->get_parameter("k_max_value").as_int();
     k_min_value_ = this->get_parameter("k_min_value").as_int();
     seq_ = this->get_parameter("start_seq").as_int();
+    max_distance_ = this->get_parameter("max_distance").as_double();
+    min_distance_ = this->get_parameter("min_distance").as_double();
+
 
     save_path_ = this->get_parameter("save_path").as_string();
 

@@ -6,32 +6,40 @@ class ODEModel_ResNet(nn.Module):
 
     def __init__(self):
         super(ODEModel_ResNet, self).__init__()
-        resnet_model = models.resnet50(weights='IMAGENET1K_V2')  # Use resnet with pretrained weights
-        
+        resnet_model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1) 
         self.backbone = nn.Sequential(*list(resnet_model.children())[:-2])  # input:output = 32:1
+        # print(self.backbone)
         
+
         self.neck = nn.Sequential(
-            nn.Conv2d(2048, 2048, kernel_size=5, padding=2),
-            nn.Conv2d(2048, 4096, kernel_size=1,),
+            nn.Conv2d(512, 512, kernel_size=5, padding=2),
+            nn.Conv2d(512, 1024, kernel_size=1,),
             nn.ReLU(),
-            # nn.Conv2d(4096, 4096, kernel_size=3, padding=1),
-            # nn.Conv2d(4096, 2048, kernel_size=1),
+            # nn.Conv2d(1024, 1024, kernel_size=3, padding=2),
+            # nn.Conv2d(1024, 2048, kernel_size=1,),
             # nn.ReLU(),
+            nn.Conv2d(1024, 1024, kernel_size=3, padding=2),
+            nn.Conv2d(1024, 4096, kernel_size=1,),
+            nn.ReLU(),
         )
 
-        self.feature_dim = 4096 # Dimensi fitur dari neck
+        self.feature_dim = 4096+2 # Dimensi fitur dari neck
 
         self.head = nn.Sequential(
-            nn.Linear(self.feature_dim, 1024),
+            nn.Linear(self.feature_dim, 2048),
+            nn.ReLU(),
+            nn.Linear(2048, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 1024),
             nn.ReLU(),
             nn.Linear(1024, 1),
             nn.ReLU()
         )
 
-    def forward(self, images, points_list):
+    def forward(self, images, xywh_list):
         """
         images      : Tensor of shape (B, 3, H, W)
-        points_list : List of B tensors, each with shape (Ni, 2)
+        xywh_list : List of B tensors, each with shape (Ni, 4)
         """
 
         """
@@ -57,7 +65,7 @@ class ODEModel_ResNet(nn.Module):
         outputs = []
 
         for i in range(B):
-            points = points_list[i]  # (Ni, 2)
+            points = xywh_list[i][:,:2]  # (Ni, 2)
             if points.numel() == 0:
                 outputs.append(torch.empty(0, device=images.device))
                 continue
@@ -68,6 +76,10 @@ class ODEModel_ResNet(nn.Module):
             # Ambil fitur dari koordinat
             features = feat[i, :, py, px]        # (C, Ni) 
             features = features.permute(1, 0)    # (Ni, C)
+
+            # append the coordinates to the features
+            wh = xywh_list[i][:, 2:4] # (Ni, 2)
+            features = torch.cat((features, wh), dim=1)
 
             # Check if the feature dimension matches the expected dimension
             if features.size(1) != self.feature_dim:
